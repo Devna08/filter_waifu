@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .config import settings
-from .model import generate, initialize_backend
-from .schemas import GenerationRequest, GenerationResponse
+from .model import initialize_backend
+from .routes.chat import router as chat_router
 
 app = FastAPI(title="Filter Waifu Backend", version="0.1.0")
 
@@ -33,6 +33,4 @@ async def config() -> dict[str, str | int | float]:
     }
 
 
-@app.post("/generate", response_model=GenerationResponse)
-def generate_text(request: GenerationRequest) -> GenerationResponse:
-    return generate(request)
+app.include_router(chat_router)

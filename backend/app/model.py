@@ -1,5 +1,15 @@
+"""Simple model loading and generation utilities.
+
+The module defines helpers for loading a text generation model. It builds
+conversation prompts from role-tagged history and supports both eager and
+lazy backend initialization.
+"""
+
+from __future__ import annotations
+
+import asyncio
 import os
-from typing import List, Optional
+from typing import AsyncGenerator, Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -15,6 +25,25 @@ _transforms_generator = None
 _transformer_tokenizer = None
 _llama_instance = None
 _backend_initialized = False
+
+
+class EchoModel:
+    """A minimal stand-in model used when no backend is available."""
+
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+
+    def generate_response(
+        self, prompt: str, *, max_tokens: int, history: Optional[Iterable[str]] = None
+    ) -> str:
+        history_text = "\n".join(history or [])
+        return (
+            f"[model={self.model_id} device={settings.device}]\n"
+            f"{history_text}\n{prompt}"
+        ).strip()
+
+
+_model: Optional[EchoModel] = None
 
 
 def _load_transformers_backend(model_name: str):
@@ -96,7 +125,9 @@ def _generate_with_llama(prompt: str, request: GenerationRequest) -> str:
     return completion["choices"][0]["text"].strip()
 
 
-def generate(request: GenerationRequest) -> GenerationResponse:
+def generate_from_request(request: GenerationRequest) -> GenerationResponse:
+    """Generate text from a structured request payload."""
+
     prompt = build_prompt(request.messages)
     backend = (request.backend or DEFAULT_BACKEND).lower()
 
@@ -110,3 +141,54 @@ def generate(request: GenerationRequest) -> GenerationResponse:
         raise ValueError(f"Unsupported backend '{backend}'")
 
     return GenerationResponse(prompt=prompt, output=output)
+
+
+def load_model() -> EchoModel:
+    """Load and cache the text generation model.
+
+    Returns a lightweight echo model by default. The function is structured to
+    accommodate real model backends when they are added later.
+    """
+
+    global _model
+    if _model is None:
+        _model = EchoModel(settings.model_path)
+    return _model
+
+
+def generate(prompt: str, history: Optional[Iterable[str]] = None, max_tokens: Optional[int] = None) -> str:
+    """Generate a completion for the provided prompt.
+
+    This wrapper maintains compatibility with the development branch API by
+    routing through the structured request generator when possible.
+    """
+
+    messages: List[Message] = [Message(role="user", content=item) for item in history or []]
+    messages.append(Message(role="user", content=prompt))
+
+    request = GenerationRequest(
+        messages=messages,
+        max_tokens=max_tokens or settings.max_tokens,
+        temperature=settings.temperature,
+        top_p=settings.top_p,
+        model=None,
+        backend=settings.backend,
+    )
+    return generate_from_request(request).output
+
+
+async def stream_generate(
+    prompt: str,
+    history: Optional[Iterable[str]] = None,
+    max_tokens: Optional[int] = None,
+) -> AsyncGenerator[str, None]:
+    """Asynchronously yield generated text token-by-token.
+
+    This implementation splits the final result into whitespace-delimited tokens
+    to simulate streaming.
+    """
+
+    result = generate(prompt, history=history, max_tokens=max_tokens)
+    for token in result.split():
+        yield token
+        await asyncio.sleep(0)
