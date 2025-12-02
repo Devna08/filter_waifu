@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -13,6 +13,7 @@ DEFAULT_MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_NAME)
 _transforms_generator = None
 _transformer_tokenizer = None
 _llama_instance = None
+_backend_initialized = False
 
 
 def _load_transformers_backend(model_name: str):
@@ -38,11 +39,26 @@ def _load_llama_backend(model_path: str):
     _llama_instance = Llama(model_path=model_path)
 
 
-def _initialize_backend():
-    if DEFAULT_BACKEND == "llama":
-        _load_llama_backend(DEFAULT_MODEL_PATH)
+def initialize_backend(backend: Optional[str] = None, model: Optional[str] = None):
+    """Load the configured backend once.
+
+    Parameters default to environment values but can be overridden to align with
+    a runtime selection (for example, when the client passes `backend`/`model`
+    on the first request).
+    """
+
+    global _backend_initialized
+
+    if _backend_initialized:
+        return
+
+    selected_backend = (backend or DEFAULT_BACKEND).lower()
+    if selected_backend == "llama":
+        _load_llama_backend(model or DEFAULT_MODEL_PATH)
     else:
-        _load_transformers_backend(DEFAULT_MODEL_NAME)
+        _load_transformers_backend(model or DEFAULT_MODEL_NAME)
+
+    _backend_initialized = True
 
 
 def build_prompt(messages: List[Message]) -> str:
@@ -83,6 +99,8 @@ def generate(request: GenerationRequest) -> GenerationResponse:
     prompt = build_prompt(request.messages)
     backend = (request.backend or DEFAULT_BACKEND).lower()
 
+    initialize_backend(backend=backend, model=request.model)
+
     if backend == "llama":
         output = _generate_with_llama(prompt, request)
     elif backend == "transformers":
@@ -91,6 +109,3 @@ def generate(request: GenerationRequest) -> GenerationResponse:
         raise ValueError(f"Unsupported backend '{backend}'")
 
     return GenerationResponse(prompt=prompt, output=output)
-
-
-_initialize_backend()
