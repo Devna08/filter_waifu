@@ -4,11 +4,12 @@ from typing import List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
+from .config import settings
 from .schemas import GenerationRequest, GenerationResponse, Message
 
-DEFAULT_BACKEND = os.getenv("MODEL_BACKEND", "transformers").lower()
-DEFAULT_MODEL_NAME = os.getenv("MODEL_NAME", "sshleifer/tiny-gpt2")
-DEFAULT_MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_NAME)
+DEFAULT_BACKEND = settings.backend
+DEFAULT_MODEL_NAME = os.getenv("MODEL_NAME", settings.model_path)
+DEFAULT_MODEL_PATH = settings.model_path
 
 _transforms_generator = None
 _transformer_tokenizer = None
