@@ -27,3 +27,9 @@ dist-ssr
 # Python cache artifacts
 __pycache__/
 *.py[cod]
+
+# model ignore
+back/app/models/base/
+back/app/models/base/**
+back/app/models/adapter/**
+back/app/models/adapter/

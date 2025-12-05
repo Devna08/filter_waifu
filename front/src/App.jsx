@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './styles/App.css'
 
 const initialMessages = [
-  { role: 'assistant', content: '안녕하세요! 궁금한 내용을 입력하면 바로 답변해드릴게요.' },
+  { role: 'assistant', content: '안녕하세요! 내용을 입력하시면 적절한 문장인지 판단해드릴게요.' },
 ]
 
 function App() {
@@ -29,7 +29,8 @@ function App() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
+      // 🔹 여기서 백엔드(8000 포트)로 직접 요청
+      const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: nextMessages }),
@@ -40,8 +41,20 @@ function App() {
       }
 
       const data = await response.json()
-      const reply = data?.reply ?? data?.message ?? '답변을 가져오지 못했습니다.'
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+
+      // 🔹 백엔드 ChatResponse: { role, content, is_safe, raw_decision }
+      const reply = data?.content ?? '답변을 가져오지 못했습니다.'
+
+      // 필터 결과에 따라 부가 메시지 붙이고 싶으면 이렇게
+      const extra =
+        data?.is_safe === false
+          ? ' (필터에 의해 부적절한 표현으로 판단되었습니다.)'
+          : ''
+
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: reply + extra },
+      ])
     } catch (fetchError) {
       console.error(fetchError)
       setError('메시지를 보내지 못했어요. 서버 상태를 확인해주세요.')
@@ -54,9 +67,9 @@ function App() {
     <div className="app">
       <header className="app__header">
         <div>
-          <p className="app__eyebrow">Local LLM Chat</p>
-          <h1 className="app__title">나만의 챗봇</h1>
-          <p className="app__subtitle">로컬에서 구동되는 LLM과 대화해보세요.</p>
+          <p className="app__eyebrow">Local LLM FILTER</p>
+          <h1 className="app__title">필터링 LLM</h1>
+          <p className="app__subtitle">로컬에서 구동되는 필터링 LLM을 이용해보세요.</p>
         </div>
       </header>
 
@@ -67,7 +80,9 @@ function App() {
               key={`${message.role}-${index}`}
               className={`chat__message chat__message--${message.role}`}
             >
-              <div className="chat__meta">{message.role === 'user' ? '나' : '봇'}</div>
+              <div className="chat__meta">
+                {message.role === 'user' ? '나' : '봇'}
+              </div>
               <p className="chat__bubble">{message.content}</p>
             </article>
           ))}
@@ -82,18 +97,24 @@ function App() {
             <textarea
               id="chat-input"
               className="chat__input"
-              placeholder="로컬 LLM에게 질문을 던져보세요"
+              placeholder="봇이 검열할 문장을 입력하세요"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               rows={3}
               disabled={isLoading}
             />
-            <button className="chat__submit" type="submit" disabled={!trimmedInput || isLoading}>
+            <button
+              className="chat__submit"
+              type="submit"
+              disabled={!trimmedInput || isLoading}
+            >
               {isLoading ? '전송 중...' : '보내기'}
             </button>
           </div>
           {error && <p className="chat__error">{error}</p>}
-          <p className="chat__hint">/api/chat 엔드포인트와 연결되어 있어요. 서버가 실행 중인지 확인해주세요.</p>
+          <p className="chat__hint">
+            백엔드: http://localhost:8000/api/chat 에 연결되어 있어요.
+          </p>
         </form>
       </main>
     </div>
