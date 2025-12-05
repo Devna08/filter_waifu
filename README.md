@@ -81,9 +81,9 @@ Please download them with:
 huggingface-cli download mistralai/Mistral-7B-v0.2 \
   --local-dir back/app/models/base
 
-```bash
 huggingface-cli download Devna08/filter_waifu \
   --local-dir back/app/models/adapter
+```
 
 Your folder must contain:
 
